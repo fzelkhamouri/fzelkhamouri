@@ -1,0 +1,235 @@
+import glob
+import pandas as pd
+import numpy as np
+import re
+import numpy as np 
+import pandas as pd 
+import psycopg2
+import os
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import StandardScaler
+from sklearn.ensemble import AdaBoostClassifier
+from sklearn.tree import DecisionTreeClassifier
+from sklearn.model_selection import cross_val_score
+from sklearn.linear_model import LogisticRegression
+from sklearn.ensemble import GradientBoostingClassifier
+from sklearn.svm import SVC
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.ensemble import GradientBoostingClassifier
+from sklearn.neural_network import MLPClassifier
+from sklearn.metrics import accuracy_score
+from sklearn.metrics import confusion_matrix
+from sklearn.metrics import classification_report
+import warnings
+warnings.filterwarnings('ignore')
+
+%%time
+import pandas as pd
+from sklearn.preprocessing import OneHotEncoder
+
+# Onehot Encoder -- categorical
+encoder = OneHotEncoder(sparse=False)
+categorical_columns = [ 'business_classification','account_size', 'product']
+
+onehot = encoder.fit_transform(data[categorical_columns])
+
+# Convert it to a DataFrame
+data_hot_encoded = pd.DataFrame(onehot, index=data.index, columns=encoder.get_feature_names_out(categorical_columns))
+
+# Extract only the columns that didn't need to be encoded
+data_other_cols = data.drop(columns=categorical_columns)
+
+# Concatenate the two dataframes:
+data = pd.concat([data_hot_encoded, data_other_cols], axis=1)
+
+
+data.groupby(['quarter','target'])['target'].count()
+
+import matplotlib.pyplot as plt
+# Create a line plot
+grouped_data = data.groupby(['quarter', 'target'])['target'].count().unstack()
+
+grouped_data.plot(kind='line', marker='o')
+
+# Set labels and title
+plt.xlabel('Quarter')
+plt.ylabel('Count')
+plt.title('Distribution of Data over Quarters')
+
+# Display the plot
+plt.show()
+
+# Split Train Data & Test Data
+train_data=data[~data['quarter'].isin(['FY24Q3'])]
+test_data= data[(data['quarter']=='FY24Q3')]
+
+# Model
+
+import numpy as np
+import pandas as pd
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.model_selection import cross_val_predict, StratifiedKFold
+from sklearn.metrics import f1_score
+from sklearn.feature_selection import RFECV
+from xgboost import XGBClassifier
+import joblib  # Import the joblib library
+
+def select_features_by_region(train_data, region):
+    # Filter the training data for the specified region
+    region_data = train_data[train_data['Region'] == region]
+
+    # Check if there is any data available for the region
+    if region_data.shape[0] == 0:
+        print(f"No data available for region: {region}")
+        return []
+
+    # Separate the features (X_region) and target (y_region)
+    X_region = region_data.drop(['Region','quarter','target'], axis=1)
+    y_region = region_data['target']
+
+    # Select the top features
+    model = RandomForestClassifier()
+    # Initialize the RFECV model with your classifier and scoring metric (e.g., F1-score)
+    rfecv = RFECV(estimator=model, step=1, cv=StratifiedKFold(5), scoring='f1')
+    rfecv.fit(X_region, y_region)
+
+    # Get the selected features from RFE
+    selected_features = X_region.columns[rfecv.support_]
+
+    return selected_features
+
+# Define the list of regions you want to process
+regions = ['EMEA', 'APJ', 'LATAM', 'North America']  # Add your regions here
+selected_features_by_region = {}
+best_thresholds = {}  # Store the best thresholds for each region
+trained_models = {}  # Dictionary to store trained models
+
+# Create an empty DataFrame to store the results
+# Create an empty DataFrame to store the results
+results = []
+
+# Iterate through regions and select features
+for region in regions:
+    selected_features = select_features_by_region(train_data, region)
+    selected_features_by_region[region] = selected_features
+
+    # The 'selected_features_by_region' dictionary now contains the selected features for each region.
+    model = XGBClassifier(objective="binary:logistic", random_state=123)
+    X_region = train_data[train_data['Region'] == region][selected_features_by_region[region]]
+    y_region = train_data[train_data['Region'] == region]['target']
+    model.fit(X_region, y_region)
+    
+    # Store the trained model for this region
+    trained_models[region] = model
+
+    # Use cross-validation to get predicted probabilities
+    predicted_probs = cross_val_predict(model, X_region, y_region, cv=5, method='predict_proba')
+
+    # Define a range of thresholds to try
+    thresholds = np.linspace(0.25, 0.5, 100)
+
+    best_threshold = 0
+    best_f1 = 0
+
+    # Iterate through thresholds and find the best one based on F1-score
+    for threshold in thresholds:
+        predicted_labels = (predicted_probs[:, 1] >= threshold).astype(int)
+        f1 = f1_score(y_region, predicted_labels)
+
+        if f1 > best_f1:
+            best_f1 = f1
+            best_threshold = threshold
+
+    print(f"Best Threshold for {region}: {best_threshold}")
+    
+    # Store the best threshold for this region
+    best_thresholds[region] = best_threshold
+
+    # Define the bin edges in increasing order
+    bin_edges = [-float('inf'), best_thresholds.get(region), float('inf')]
+
+    # Map predicted probabilities to categories
+    predicted_probs_final = model.predict_proba(X_region)[:, 1]
+    X_region_with_score = pd.cut(predicted_probs_final, bins=bin_edges, labels=['Low', 'High'])
+    X_region_with_score = pd.DataFrame(X_region_with_score, columns=['Score'])  # Create a DataFrame with 'Score' column
+    X_region_with_score['region'] = region  # Add 'region' column
+
+    # Append the DataFrame to the results list
+    results.append(X_region_with_score)
+
+# Concatenate all results into a single DataFrame
+all_results = pd.concat(results)
+
+for region, model in trained_models.items():
+    model_filename = f'model_{region}.joblib'
+    joblib.dump(model, model_filename)
+
+
+
+
+# Assign 'target' values based on the 'region'
+all_results.loc[all_results['region'] == 'EMEA', 'target'] = train_data.loc[train_data['region'] == 'EMEA', 'target'].values
+all_results.loc[all_results['region'] == 'North America', 'target'] = train_data.loc[train_data['region'] == 'North America', 'target'].values
+all_results.loc[all_results['region'] == 'LATAM', 'target'] = train_data.loc[train_data['region'] == 'LATAM', 'target'].values
+all_results.loc[all_results['region'] == 'APJ', 'target'] = train_data.loc[train_data['region'] == 'APJ', 'target'].values
+
+score_comparison = all_results.groupby(['region', 'target', 'Score']).size().reset_index(name='count')
+score_comparison
+
+
+import numpy as np
+import pandas as pd
+import joblib
+
+# Define the list of regions you want to process
+regions = ['EMEA', 'APJ', 'LATAM', 'North America'] # Add your regions here
+results_by_region_test = []
+
+# Load the trained models
+trained_models = {}
+for region in regions:
+    model_filename = f'model_{region}.joblib'
+    trained_models[region] = joblib.load(model_filename)
+
+for region in regions:
+    # Filter the test data for the specified region
+    test_region_data = test_data[test_data['sales_business_unit_level_1'] == region]
+
+    if test_region_data.shape[0] == 0:
+        print(f"No data available for region: {region}")
+        continue
+
+    # Separate the features (X_test_region)
+    selected_features = selected_features_by_region[region]
+    X_test_region = test_region_data[selected_features]
+
+    # Use the trained model for this region to get predicted probabilities
+    model = trained_models[region]
+
+    # Use the corresponding best threshold found during training for this region
+    best_threshold = best_thresholds.get(region)  # You should have best_thresholds defined
+
+    # Map predicted probabilities to categories based on the threshold
+    bin_edges = [-float('inf'), best_thresholds.get(region), float('inf')]
+    predicted_probs_test = model.predict_proba(X_test_region)[:, 1]
+    test_with_score = pd.cut(predicted_probs_test, bins=bin_edges, labels=['Low', 'High'], include_lowest=True)
+    test_with_score = pd.DataFrame(test_with_score, columns=['Score'])
+    test_with_score['region'] = region  # Add 'region' column
+
+    # Append the results for this region to the list
+    results_by_region_test.append(test_with_score)
+
+# Concatenate all results into a single DataFrame
+all_results_test = pd.concat(results_by_region_test, ignore_index=True)
+
+
+# Assign 'forecaststatusgroupname' values based on the 'region'
+all_results_test.loc[all_results_test['region'] == 'EMEA', 'target'] = test_data.loc[test_data['Region'] == 'EMEA', 'target'].values
+all_results_test.loc[all_results_test['region'] == 'North America', 'target'] = test_data.loc[test_data['Region'] == 'North America', 'target'].values
+all_results_test.loc[all_results_test['region'] == 'LATAM', 'target'] = test_data.loc[test_data['Region'] == 'LATAM', 'target'].values
+all_results_test.loc[all_results_test['region'] == 'APJ', 'target'] = test_data.loc[test_data['Region'] == 'APJ', 'target'].values
+
+test_score_comparison = all_results_test.groupby(['region', 'target', 'Score']).size().reset_index(name='count')
+test_score_comparison
+
+
