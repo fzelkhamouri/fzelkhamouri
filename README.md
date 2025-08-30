@@ -19,9 +19,6 @@ Welcome to my GitHub! I specialize in applying **machine learning, deep learning
 - 🚀 [Pipeline Win Propensity Model](https://github.com/fzelkhamouri/pipeline-propensity-model)  
    Predicts win probability of sales opportunities using ML models.  
 
-- 📊 [Revenue Forecasting Model](https://github.com/fzelkhamouri/revenue-forecasting)  
-   Time series forecasting with Prophet and ARIMA for business planning.  
-
 - 🧠 [Brain Tumor Segmentation with U-Net](https://github.com/fzelkhamouri/brain-tumor-unet)  
    Deep learning model applied to MRI images for medical imaging research.  
 
