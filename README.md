@@ -16,13 +16,13 @@ Welcome to my GitHub! I specialize in applying **machine learning, deep learning
 ---
 
 ## 📂 Highlighted Projects
-- 🚀 [Pipeline Win Propensity Model](https://github.com/fzelkhamouri/pipeline-propensity-model)  
+- 🚀 [Pipeline Win Propensity Model](https://github.com/fzelkhamouri/Pipeline-Win-Propensity-Model/tree/main)  
    Predicts win probability of sales opportunities using ML models.  
 
-- 🧠 [Brain Tumor Segmentation with U-Net](https://github.com/fzelkhamouri/brain-tumor-unet)  
+- 🧠 [Brain Tumor Segmentation with U-Net](https://github.com/fzelkhamouri/Brain-Tumor-Segmentation-with-U-Net/tree/main)  
    Deep learning model applied to MRI images for medical imaging research.  
 
-- 📈 [Interactive Dashboards](https://github.com/fzelkhamouri/data-viz-dashboards)  
+- 📈 [Delivery Analysis](https://github.com/fzelkhamouri/Delivey_Analysis/blob/main/Delivery_analysis.ipynb)  
    Showcases Tableau & Power BI dashboards for business analytics.  
 
 ---
